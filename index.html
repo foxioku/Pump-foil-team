@@ -346,6 +346,7 @@
     <div class="form-title">Nouvel événement</div>
     <div class="form-grid">
       <select id="f-date" class="full"></select>
+      <!-- Heure : menu scrollable depuis heure actuelle → 23h30 -->
       <div class="full" style="position:relative">
         <div id="heure-display" onclick="toggleHeureMenu()" style="
           background:var(--surface2); border:1px solid var(--border2);
@@ -354,7 +355,7 @@
           align-items:center; justify-content:space-between;
           transition:border-color .2s; user-select:none;
         ">
-          <span id="heure-label">🕐 Heure & durée...</span>
+          <span id="heure-label">🕐 Heure...</span>
           <span style="color:var(--muted);font-size:10px">▼</span>
         </div>
         <div id="heure-menu" style="
@@ -364,29 +365,39 @@
           border-radius:12px; overflow:hidden;
           box-shadow:0 8px 32px rgba(0,0,0,.6);
         ">
-          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--border)">
-            <div style="padding:8px 12px; font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; border-right:1px solid var(--border)">Heure</div>
-            <div style="padding:8px 12px; font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px">Durée</div>
-          </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; height:220px;">
-            <div id="heure-list" style="
-              overflow-y:scroll;
-              -webkit-overflow-scrolling:touch;
-              overscroll-behavior:contain;
-              border-right:1px solid var(--border);
-              touch-action:pan-y;
-            "></div>
-            <div id="duree-list" style="
-              overflow-y:scroll;
-              -webkit-overflow-scrolling:touch;
-              overscroll-behavior:contain;
-              touch-action:pan-y;
-            "></div>
-          </div>
+          <div style="padding:8px 12px; font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; border-bottom:1px solid var(--border)">Heure de début</div>
+          <div id="heure-list" style="
+            overflow-y:scroll; height:220px;
+            -webkit-overflow-scrolling:touch;
+            overscroll-behavior:contain;
+            touch-action:pan-y;
+          "></div>
         </div>
       </div>
+
+      <!-- Durée : select natif indépendant -->
+      <div class="full">
+        <select id="f-duree" onchange="choisirDuree(parseFloat(this.value))" style="
+          background:var(--surface2); border:1px solid var(--border2);
+          color:var(--text); padding:9px 12px; border-radius:10px;
+          font-size:12px; cursor:pointer; width:100%; outline:none;
+          -webkit-appearance:none; appearance:none;
+          background-image:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22%2371717a%22 d=%22M6 8L1 3h10z%22/></svg>');
+          background-repeat:no-repeat; background-position:right 12px center;
+        ">
+          <option value="0.5">⏱️ Durée — 30 min</option>
+          <option value="1" selected>⏱️ Durée — 1h</option>
+          <option value="1.5">⏱️ Durée — 1h 30</option>
+          <option value="2">⏱️ Durée — 2h</option>
+          <option value="2.5">⏱️ Durée — 2h 30</option>
+          <option value="3">⏱️ Durée — 3h</option>
+          <option value="3.5">⏱️ Durée — 3h 30</option>
+          <option value="4">⏱️ Durée — 4h</option>
+        </select>
+      </div>
+
       <input type="hidden" id="f-heure" value="09:00">
-      <input type="hidden" id="f-duree" value="1">
+      <input type="hidden" id="f-duree-val" value="1">
       <input type="text" id="f-nom" placeholder="Nom de l'événement..." class="full" onkeypress="if(event.key==='Enter') ajouter()">
       <div class="full" style="position:relative">
         <div style="display:flex;gap:6px">
@@ -484,15 +495,23 @@ function changerSemaine(delta) {
 // ══════════════════════════════════════════
 // MENU HEURE / DURÉE
 // ══════════════════════════════════════════
-let heureChoisie = '09:00';
+
+// Initialiser à l'heure actuelle arrondie au prochain 30 min
+function heureParDefaut() {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes() < 30 ? 0 : 30;
+  return `${String(h).padStart(2,'0')}:${m === 0 ? '00' : '30'}`;
+}
+
+let heureChoisie = heureParDefaut();
 let dureeChoisie = 1;
 
 function initHeureMenu() {
   const listH = document.getElementById('heure-list');
-  const listD = document.getElementById('duree-list');
 
   const itemStyle = (actif) => `
-    padding:11px 14px; font-size:13px; cursor:pointer;
+    padding:11px 16px; font-size:13px; cursor:pointer;
     background:${actif ? 'rgba(59,130,246,.15)' : 'transparent'};
     color:${actif ? '#60a5fa' : 'var(--text)'};
     font-weight:${actif ? '700' : '400'};
@@ -500,11 +519,7 @@ function initHeureMenu() {
     white-space:nowrap;
   `;
 
-  // ── Colonne heures : heure actuelle → 23h30 ──
-  const maintenant = new Date();
-  const hNow = maintenant.getHours();
-  const mNow = maintenant.getMinutes() < 30 ? 0 : 30;
-
+  // Créneaux 00h00 → 23h30
   const creneaux = [];
   for (let h = 0; h <= 23; h++) {
     for (let m of [0, 30]) {
@@ -512,69 +527,35 @@ function initHeureMenu() {
     }
   }
 
-  // Trouver l'index de départ = heure actuelle
+  // Index de l'heure actuelle → on part de là
+  const now = new Date();
+  const hNow = now.getHours();
+  const mNow = now.getMinutes() < 30 ? 0 : 30;
   const idxNow = creneaux.findIndex(c => {
     const [ch, cm] = c.split(':').map(Number);
     return ch === hNow && cm === mNow;
   });
 
-  // Réordonner : heure actuelle en premier, puis jusqu'à 23h30
-  const creneauxOrdonnes = [
-    ...creneaux.slice(idxNow),   // heure actuelle → 23h30
-    ...creneaux.slice(0, idxNow) // 00h00 → heure actuelle - 1
-  ];
+  // Liste : heure actuelle → 23h30 uniquement
+  const creneauxFiltres = creneaux.slice(idxNow);
 
-  listH.innerHTML = creneauxOrdonnes.map(str => {
+  listH.innerHTML = creneauxFiltres.map(str => {
     const actif = str === heureChoisie;
+    const isNow = str === creneauxFiltres[0];
     return `<div onclick="choisirHeure('${str}')" style="${itemStyle(actif)}"
       onmouseover="this.style.background='rgba(255,255,255,.06)'"
       onmouseout="this.style.background='${actif ? 'rgba(59,130,246,.15)' : 'transparent'}'">
-      ${str}
+      ${str}${isNow ? ' <span style="font-size:10px;color:var(--muted)">maintenant</span>' : ''}
     </div>`;
   }).join('');
 
-  // Scroll automatique vers l'heure choisie dans la liste réordonnée
-  const idxChoisi = creneauxOrdonnes.indexOf(heureChoisie);
-  if (idxChoisi >= 0) {
-    setTimeout(() => {
-      const items = listH.querySelectorAll('div');
-      if (items[idxChoisi]) {
-        items[idxChoisi].scrollIntoView({ block: 'center', behavior: 'instant' });
-      }
-    }, 30);
-  }
-
-  // ── Colonne durées ──
-  const durees = [
-    { val: 0.5, label: '30 min' },
-    { val: 1,   label: '1h' },
-    { val: 1.5, label: '1h 30' },
-    { val: 2,   label: '2h' },
-    { val: 2.5, label: '2h 30' },
-    { val: 3,   label: '3h' },
-    { val: 3.5, label: '3h 30' },
-    { val: 4,   label: '4h' },
-  ];
-
-  listD.innerHTML = durees.map(d => {
-    const actif = d.val === dureeChoisie;
-    return `<div onclick="choisirDuree(${d.val})" style="${itemStyle(actif)}"
-      onmouseover="this.style.background='rgba(255,255,255,.06)'"
-      onmouseout="this.style.background='${actif ? 'rgba(59,130,246,.15)' : 'transparent'}'">
-      ${d.label}
-    </div>`;
-  }).join('');
-
-  // Scroll vers la durée choisie
-  const idxDuree = durees.findIndex(d => d.val === dureeChoisie);
-  if (idxDuree >= 0) {
-    setTimeout(() => {
-      const items = listD.querySelectorAll('div');
-      if (items[idxDuree]) {
-        items[idxDuree].scrollIntoView({ block: 'center', behavior: 'instant' });
-      }
-    }, 30);
-  }
+  // Scroll vers l'heure choisie
+  const idxChoisi = creneauxFiltres.indexOf(heureChoisie);
+  setTimeout(() => {
+    const items = listH.querySelectorAll('div');
+    const target = items[idxChoisi >= 0 ? idxChoisi : 0];
+    if (target) target.scrollIntoView({ block: 'center', behavior: 'instant' });
+  }, 30);
 }
 
 function choisirHeure(h) {
@@ -582,18 +563,19 @@ function choisirHeure(h) {
   document.getElementById('f-heure').value = h;
   majHeureLabel();
   initHeureMenu();
+  // Fermer le menu après sélection
+  setTimeout(() => {
+    document.getElementById('heure-menu').style.display = 'none';
+  }, 150);
 }
 
 function choisirDuree(d) {
   dureeChoisie = d;
-  document.getElementById('f-duree').value = d;
-  majHeureLabel();
-  initHeureMenu();
+  document.getElementById('f-duree-val').value = d;
 }
 
 function majHeureLabel() {
-  const labels = { 0.5:'30 min', 1:'1h', 1.5:'1h 30', 2:'2h', 2.5:'2h 30', 3:'3h', 3.5:'3h 30', 4:'4h' };
-  document.getElementById('heure-label').textContent = `🕐 ${heureChoisie} — ${labels[dureeChoisie] || dureeChoisie+'h'}`;
+  document.getElementById('heure-label').textContent = `🕐 ${heureChoisie}`;
 }
 
 function toggleHeureMenu() {
@@ -603,7 +585,7 @@ function toggleHeureMenu() {
   if (!isOpen) initHeureMenu();
 }
 
-// Fermer le menu si clic en dehors
+// Fermer le menu heure si clic en dehors
 document.addEventListener('click', e => {
   const display = document.getElementById('heure-display');
   const menu    = document.getElementById('heure-menu');
@@ -722,7 +704,7 @@ function ajouter() {
     id: Date.now(),
     nom,
     heure: heureChoisie,
-    duree: dureeChoisie,
+    duree: parseFloat(document.getElementById('f-duree').value),
     ville: villeSelectionnee.nom,
     lat:   villeSelectionnee.lat,
     lng:   villeSelectionnee.lng,
@@ -861,14 +843,17 @@ function creerIcone(couleur, num) {
 function initCarte() {
   if (!map) {
     map = L.map('map', { zoomControl:true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+
+    // Tuiles avec meilleur contraste — voyager style (contours bien visibles)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution:'©OpenStreetMap ©CartoDB', maxZoom:18
     }).addTo(map);
-    // Vue initiale centre France en attendant la géoloc
+
+    // Vue initiale France en attendant la géoloc
     map.setView([46.5, 2.5], 6);
   }
 
-  // Toujours redemander la position à chaque ouverture de la carte
+  // Géolocalisation immédiate à chaque ouverture
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       pos => {
@@ -877,7 +862,6 @@ function initCarte() {
       },
       err => {
         console.warn('Géoloc échouée:', err.message);
-        // Fallback : centre France
         userPos = [46.5, 2.5];
         afficherCarte();
       },
@@ -896,16 +880,16 @@ function afficherCarte() {
   Object.values(markersMap).forEach(m => m.remove());
   markersMap = {};
 
-  // Position utilisateur
+  // Position utilisateur — marqueur plus visible
   L.circleMarker(userPos, {
-    radius:10, fillColor:'#3b82f6', color:'#fff', weight:3, fillOpacity:1
+    radius:12, fillColor:'#3b82f6', color:'#fff', weight:3, fillOpacity:1
   }).addTo(map).bindPopup('<b>📍 Votre position</b>');
 
-  // Cercle 100km
+  // Cercle 100km — contour plus visible
   L.circle(userPos, {
     radius:100000, color:'#3b82f6',
-    fillColor:'#3b82f6', fillOpacity:.07,
-    weight:2, dashArray:'8,6'
+    fillColor:'#3b82f6', fillOpacity:.08,
+    weight:2.5, dashArray:'10,6'
   }).addTo(map);
 
   // Marqueurs événements
@@ -928,10 +912,12 @@ function afficherCarte() {
     bounds.push([ev.lat, ev.lng]);
   });
 
-  // Zoom pour tout voir
+  // Si pas d'événements → centrer sur user avec zoom qui montre le rayon 100km
+  // Si événements → fitBounds pour tout voir
   if (bounds.length > 1) {
     map.fitBounds(L.latLngBounds(bounds).pad(0.25));
   } else {
+    // Zoom ~9 montre environ 100km de rayon
     map.setView(userPos, 9);
   }
 
@@ -981,6 +967,8 @@ function toggleLegende() {
 // ══════════════════════════════════════════
 remplirSelectDate();
 remplirSelectVille();
+heureChoisie = heureParDefaut();
+document.getElementById('f-heure').value = heureChoisie;
 majHeureLabel();
 rendreGrille();
 </script>
