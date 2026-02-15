@@ -345,7 +345,7 @@
   <div class="form-card">
     <div class="form-title">Nouvel événement</div>
     <div class="form-grid">
-      <select id="f-date" class="full"></select>
+      <select id="f-date" class="full" onchange="onDateChange()"></select>
       <!-- Heure : menu scrollable depuis heure actuelle → 23h30 -->
       <div class="full" style="position:relative">
         <div id="heure-display" onclick="toggleHeureMenu()" style="
@@ -497,11 +497,16 @@ function changerSemaine(delta) {
 // ══════════════════════════════════════════
 
 // Initialiser à l'heure actuelle arrondie au prochain 30 min
-function heureParDefaut() {
-  const now = new Date();
-  const h = now.getHours();
-  const m = now.getMinutes() < 30 ? 0 : 30;
-  return `${String(h).padStart(2,'0')}:${m === 0 ? '00' : '30'}`;
+function heureParDefaut(pourAujourdhui = true) {
+  if (pourAujourdhui) {
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes() < 30 ? 30 : 0;
+    const hFinal = m === 0 ? h + 1 : h;
+    if (hFinal >= 24) return '23:30';
+    return `${String(hFinal).padStart(2,'0')}:${m === 0 ? '00' : '30'}`;
+  }
+  return '09:00';
 }
 
 let heureChoisie = heureParDefaut();
@@ -519,6 +524,11 @@ function initHeureMenu() {
     white-space:nowrap;
   `;
 
+  // Déterminer si le jour sélectionné est aujourd'hui
+  const dateSelectionnee = document.getElementById('f-date').value;
+  const aujourdhui = new Date().toISOString().split('T')[0];
+  const estAujourdhuiSelect = dateSelectionnee === aujourdhui;
+
   // Créneaux 00h00 → 23h30
   const creneaux = [];
   for (let h = 0; h <= 23; h++) {
@@ -527,25 +537,30 @@ function initHeureMenu() {
     }
   }
 
-  // Index de l'heure actuelle → on part de là
-  const now = new Date();
-  const hNow = now.getHours();
-  const mNow = now.getMinutes() < 30 ? 0 : 30;
-  const idxNow = creneaux.findIndex(c => {
-    const [ch, cm] = c.split(':').map(Number);
-    return ch === hNow && cm === mNow;
-  });
+  let creneauxFiltres;
+  if (estAujourdhuiSelect) {
+    // Aujourd'hui → à partir de l'heure actuelle
+    const now = new Date();
+    const hNow = now.getHours();
+    const mNow = now.getMinutes() < 30 ? 0 : 30;
+    const idxNow = creneaux.findIndex(c => {
+      const [ch, cm] = c.split(':').map(Number);
+      return ch === hNow && cm === mNow;
+    });
+    creneauxFiltres = creneaux.slice(idxNow);
+  } else {
+    // Autre jour → à partir de 09h00
+    creneauxFiltres = creneaux.slice(creneaux.indexOf('09:00'));
+  }
 
-  // Liste : heure actuelle → 23h30 uniquement
-  const creneauxFiltres = creneaux.slice(idxNow);
-
-  listH.innerHTML = creneauxFiltres.map(str => {
+  listH.innerHTML = creneauxFiltres.map((str, idx) => {
     const actif = str === heureChoisie;
-    const isNow = str === creneauxFiltres[0];
+    const isFirst = idx === 0;
+    const label = isFirst ? (estAujourdhuiSelect ? ' <span style="font-size:10px;color:var(--muted)">maintenant</span>' : '') : '';
     return `<div onclick="choisirHeure('${str}')" style="${itemStyle(actif)}"
       onmouseover="this.style.background='rgba(255,255,255,.06)'"
       onmouseout="this.style.background='${actif ? 'rgba(59,130,246,.15)' : 'transparent'}'">
-      ${str}${isNow ? ' <span style="font-size:10px;color:var(--muted)">maintenant</span>' : ''}
+      ${str}${label}
     </div>`;
   }).join('');
 
@@ -556,6 +571,14 @@ function initHeureMenu() {
     const target = items[idxChoisi >= 0 ? idxChoisi : 0];
     if (target) target.scrollIntoView({ block: 'center', behavior: 'instant' });
   }, 30);
+}
+
+function onDateChange() {
+  const dateSelectionnee = document.getElementById('f-date').value;
+  const aujourdhui = new Date().toISOString().split('T')[0];
+  heureChoisie = heureParDefaut(dateSelectionnee === aujourdhui);
+  document.getElementById('f-heure').value = heureChoisie;
+  majHeureLabel();
 }
 
 function choisirHeure(h) {
@@ -967,7 +990,7 @@ function toggleLegende() {
 // ══════════════════════════════════════════
 remplirSelectDate();
 remplirSelectVille();
-heureChoisie = heureParDefaut();
+heureChoisie = heureParDefaut(true);
 document.getElementById('f-heure').value = heureChoisie;
 majHeureLabel();
 rendreGrille();
