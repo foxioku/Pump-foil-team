@@ -461,6 +461,10 @@ let legendeOpen   = true;
 // ══════════════════════════════════════════
 // UTILITAIRES DATE
 // ══════════════════════════════════════════
+function dateKeyLocal(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
 function getJours() {
   const base = new Date();
   base.setDate(base.getDate() + offsetSemaine * 5);
@@ -470,7 +474,7 @@ function getJours() {
   return Array.from({length:5}, (_,i) => {
     const d = new Date(base);
     d.setDate(base.getDate() + i);
-    const key = d.toISOString().split('T')[0];
+    const key = dateKeyLocal(d);
     return { nom: noms[d.getDay()], jourNum: d.getDate(), mois: moisFr[d.getMonth()], dateKey: key, date: d };
   });
 }
@@ -526,8 +530,7 @@ function initHeureMenu() {
 
   // Déterminer si le jour sélectionné est aujourd'hui
   const dateSelectionnee = document.getElementById('f-date').value;
-  const aujourdhui = new Date().toISOString().split('T')[0];
-  const estAujourdhuiSelect = dateSelectionnee === aujourdhui;
+  const estAujourdhuiSelect = estAujourdhui_date(dateSelectionnee);
 
   // Créneaux 00h00 → 23h30
   const creneaux = [];
@@ -573,10 +576,13 @@ function initHeureMenu() {
   }, 30);
 }
 
+function estAujourdhui_date(dateKey) {
+  return dateKey === dateKeyLocal(new Date());
+}
+
 function onDateChange() {
   const dateSelectionnee = document.getElementById('f-date').value;
-  const aujourdhui = new Date().toISOString().split('T')[0];
-  heureChoisie = heureParDefaut(dateSelectionnee === aujourdhui);
+  heureChoisie = heureParDefaut(estAujourdhui_date(dateSelectionnee));
   document.getElementById('f-heure').value = heureChoisie;
   majHeureLabel();
 }
@@ -990,7 +996,8 @@ function toggleLegende() {
 // ══════════════════════════════════════════
 remplirSelectDate();
 remplirSelectVille();
-heureChoisie = heureParDefaut(true);
+const dateInitiale = document.getElementById('f-date').value;
+heureChoisie = heureParDefaut(estAujourdhui_date(dateInitiale));
 document.getElementById('f-heure').value = heureChoisie;
 majHeureLabel();
 rendreGrille();
