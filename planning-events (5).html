@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pump_Foil_Team</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #000000;
+      --surface:   #18181b;
+      --surface2:  #27272a;
+      --border:    #27272a;
+      --border2:   #3f3f46;
+      --text:      #ffffff;
+      --muted:     #71717a;
+      --accent:    #3b82f6;
+      --accent2:   #2563eb;
+      --green:     #10b981;
+      --radius:    14px;
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    .header {
+      position: sticky; top:0; z-index:200;
+      backdrop-filter: blur(20px);
+      background: rgba(0,0,0,.9);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex; align-items:center; justify-content:space-between;
+    }
+    .header-left { display:flex; align-items:center; gap:10px; }
+    .header-icon {
+      width:34px; height:34px; border-radius:10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display:flex; align-items:center; justify-content:center;
+      font-size:17px; box-shadow:0 4px 12px rgba(99,102,241,.4);
+    }
+    .header h1 {
+      font-size:17px; font-weight:800;
+      letter-spacing:-0.6px;
+      background: linear-gradient(90deg, #fff 60%, rgba(255,255,255,.5));
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    .tab-bar {
+      display:flex; gap:2px;
+      background: var(--surface2);
+      border:1px solid var(--border);
+      border-radius:10px; padding:3px;
+    }
+    .tab {
+      padding:5px 14px; border-radius:8px;
+      font-size:12px; font-weight:600;
+      border:none; cursor:pointer;
+      color: var(--muted); background:transparent;
+      transition:all .2s; letter-spacing:.2px;
+    }
+    .tab.active {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#fff;
+      box-shadow: 0 2px 8px rgba(99,102,241,.4);
+    }
+
+    /* ── VUE PLANNING ── */
+    #vue-planning { display:block; padding:14px; }
+    #vue-carte    { display:none; }
+
+    /* ── BOUTON CARTE ── */
+    .btn-carte {
+      width:100%; padding:13px 16px; margin-bottom:16px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#fff; border:none; border-radius:var(--radius);
+      font-size:14px; font-weight:700; cursor:pointer;
+      display:flex; align-items:center; justify-content:center; gap:8px;
+      box-shadow: 0 4px 20px rgba(99,102,241,.35);
+      transition: all .2s; letter-spacing:.1px;
+    }
+    .btn-carte:hover { transform:translateY(-1px); box-shadow:0 6px 24px rgba(99,102,241,.5); }
+    .btn-carte:active { transform:translateY(0); }
+
+    /* ── NAV SEMAINE ── */
+    .nav-semaine {
+      display:flex; align-items:center; justify-content:center;
+      gap:14px; margin-bottom:14px;
+    }
+    .nav-btn {
+      width:34px; height:34px; border-radius:10px;
+      background: var(--surface2);
+      border:1px solid var(--border);
+      color: var(--muted); font-size:20px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition: all .2s;
+    }
+    .nav-btn:hover { border-color:var(--border2); color:#fff; }
+    .nav-info { text-align:center; }
+    .nav-info .mois { font-size:15px; font-weight:700; letter-spacing:-.3px; text-transform:capitalize; }
+    .nav-info .jours { font-size:11px; color:var(--muted); margin-top:1px; }
+
+    /* ── GRILLE 5 JOURS ── */
+    .grille { display:grid; grid-template-columns:repeat(5,1fr); gap:7px; }
+
+    .col-jour {
+      background: var(--surface);
+      border-radius:12px; overflow:hidden;
+      border:1px solid var(--border);
+      transition: border-color .2s;
+    }
+    .col-jour.today {
+      border-color: rgba(99,102,241,.5);
+      box-shadow:0 0 0 1px rgba(99,102,241,.2), 0 4px 16px rgba(99,102,241,.1);
+    }
+
+    .jour-header { padding:7px 4px; text-align:center; color:#fff; position:relative; }
+    .jour-header.semaine {
+      background: linear-gradient(160deg, #1e1b4b, #312e81);
+    }
+    .jour-header.weekend {
+      background: linear-gradient(160deg, #2d1b69, #4c1d95);
+    }
+    .jour-header.today-header::after {
+      content:''; position:absolute; bottom:0; left:50%; transform:translateX(-50%);
+      width:20px; height:2px; background:var(--accent); border-radius:2px;
+    }
+    .jour-nom  { font-size:8px; font-weight:700; letter-spacing:.8px; opacity:.7; text-transform:uppercase; }
+    .jour-num  { font-size:20px; font-weight:800; line-height:1.1; letter-spacing:-.5px; }
+    .jour-mois { font-size:8px; opacity:.6; text-transform:uppercase; letter-spacing:.5px; }
+
+    .jour-body {
+      padding:5px; min-height:80px; max-height:300px;
+      overflow-y:auto; display:flex; flex-direction:column; gap:4px;
+    }
+    .jour-body::-webkit-scrollbar { width:2px; }
+    .jour-body::-webkit-scrollbar-thumb { background:var(--border2); border-radius:2px; }
+
+    .aucun { text-align:center; color:#2a2a3d; font-size:9px; padding:16px 0; }
+
+    /* ── EVENT CARD ── */
+    .event-card {
+      border-radius:8px; padding:6px 7px;
+      background: var(--surface2);
+      border:1px solid var(--border);
+      border-left-width:3px;
+      position:relative;
+      transition: all .15s;
+      animation: fadeIn .2s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+    .event-card:hover { border-color:var(--border2); }
+
+    .event-heure { font-size:9px; font-weight:700; color:var(--muted); letter-spacing:.3px; }
+    .event-nom   { font-size:10px; font-weight:600; color:var(--text); line-height:1.3; margin-top:1px; }
+    .event-ville { font-size:9px; color:var(--muted); display:flex; align-items:center; gap:2px; margin-top:2px; }
+
+    .event-actions { display:flex; gap:3px; margin-top:5px; }
+    .btn-participer {
+      flex:1; display:flex; align-items:center; justify-content:center; gap:3px;
+      padding:3px 0; border-radius:5px; border:none; cursor:pointer;
+      font-size:9px; font-weight:700; transition:all .2s;
+      background: rgba(255,255,255,.06); color:var(--muted);
+    }
+    .btn-participer.actif {
+      background: rgba(16,185,129,.2);
+      color:#34d399;
+      border:1px solid rgba(16,185,129,.3);
+    }
+    .btn-wa {
+      background: rgba(16,185,129,.15);
+      border:1px solid rgba(16,185,129,.25);
+      color:#34d399; border-radius:5px;
+      padding:3px 6px; cursor:pointer; font-size:10px;
+      transition:all .2s;
+    }
+    .btn-wa:hover { background:rgba(16,185,129,.3); }
+
+    .btn-del {
+      position:absolute; top:4px; right:4px;
+      background:transparent; border:none; color:transparent;
+      font-size:10px; cursor:pointer;
+      width:16px; height:16px; border-radius:4px;
+      transition:all .15s; display:flex; align-items:center; justify-content:center;
+    }
+    .event-card:hover .btn-del { color:var(--muted); }
+    .btn-del:hover { background:rgba(239,68,68,.2) !important; color:#f87171 !important; }
+
+    /* ── FORMULAIRE ── */
+    .form-card {
+      background: var(--surface);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:14px; margin-bottom:14px;
+      box-shadow:0 4px 24px rgba(0,0,0,.3);
+    }
+    .form-title {
+      font-size:12px; font-weight:700;
+      color:var(--muted); margin-bottom:10px;
+      text-transform:uppercase; letter-spacing:.8px;
+    }
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+    .form-grid .full { grid-column:1/-1; }
+
+    .form-grid input, .form-grid select {
+      background: var(--surface2);
+      border:1px solid var(--border);
+      color:var(--text);
+      padding:9px 12px; border-radius:10px;
+      font-size:12px; font-family:inherit;
+      outline:none; width:100%;
+      transition:border-color .2s;
+      -webkit-appearance:none;
+    }
+    .form-grid input::placeholder { color: var(--muted); }
+    .form-grid input:focus {
+      border-color: rgba(99,102,241,.5);
+      background: rgba(99,102,241,.05);
+    }
+
+    .btn-add {
+      grid-column:1/-1;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color:#fff; border:none;
+      padding:11px; border-radius:10px;
+      font-size:13px; font-weight:700;
+      font-family:inherit; cursor:pointer;
+      box-shadow:0 4px 14px rgba(99,102,241,.35);
+      transition:all .2s; letter-spacing:.1px;
+    }
+    .btn-add:hover { transform:translateY(-1px); box-shadow:0 6px 20px rgba(99,102,241,.5); }
+    .btn-add:active { transform:none; }
+
+    /* ── VUE CARTE ── */
+    #map { width:100%; height:calc(100vh - 58px); }
+
+    /* ── LÉGENDE ── */
+    #legende {
+      position:fixed; bottom:0; left:0; right:0; z-index:1000;
+      backdrop-filter:blur(20px);
+      background:rgba(7,7,17,.9);
+      border-top:1px solid var(--border);
+      max-height:45vh; overflow-y:auto;
+      transition:transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    #legende.collapsed { transform:translateY(calc(100% - 48px)); }
+
+    .leg-toggle {
+      padding:14px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      cursor:pointer;
+    }
+    .leg-toggle-left { display:flex; align-items:center; gap:8px; }
+    .leg-pill {
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff; font-size:11px; font-weight:700;
+      padding:2px 8px; border-radius:20px;
+    }
+    .leg-toggle span { font-size:13px; font-weight:700; }
+    .leg-toggle .chevron {
+      width:26px; height:26px; border-radius:8px;
+      background:var(--surface2); border:1px solid var(--border);
+      display:flex; align-items:center; justify-content:center;
+      font-size:11px; transition:transform .3s;
+    }
+    #legende.collapsed .chevron { transform:rotate(180deg); }
+
+    .leg-list { padding:0 12px 16px; display:flex; flex-direction:column; gap:7px; }
+    .leg-item {
+      display:flex; align-items:center; gap:12px;
+      background: var(--surface);
+      border-radius:12px; padding:11px 13px;
+      cursor:pointer;
+      border:1px solid var(--border);
+      border-left:3px solid var(--c);
+      transition:all .2s;
+    }
+    .leg-item:hover { background:var(--surface2); border-color:var(--border2); }
+    .leg-dot {
+      width:30px; height:30px; border-radius:50%;
+      background:var(--c);
+      box-shadow:0 0 12px color-mix(in srgb, var(--c) 50%, transparent);
+      display:flex; align-items:center; justify-content:center;
+      font-size:13px; font-weight:800; color:#fff; flex-shrink:0;
+    }
+    .leg-info strong { display:block; font-size:13px; font-weight:600; }
+    .leg-info small  { font-size:11px; color:var(--muted); }
+
+    /* ── BADGE MAP ── */
+    .cercle-info {
+      position:absolute; top:12px; left:12px; z-index:500;
+      backdrop-filter:blur(12px);
+      background:rgba(7,7,17,.75);
+      border:1px solid var(--border2);
+      border-radius:10px;
+      padding:6px 11px; font-size:11px; font-weight:600;
+      color:#818cf8;
+    }
+
+    /* Suggestions ville */
+    #ville-suggestions div { transition:background .1s; }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-icon">🏄</div>
+    <h1>Pump_Foil_Team</h1>
+  </div>
+  <div class="tab-bar">
+    <button class="tab active" onclick="setVue('planning')">Planning</button>
+    <button class="tab" id="tab-carte" onclick="setVue('carte')">Carte</button>
+  </div>
+</div>
+
+<!-- ═══════════════ VUE PLANNING ═══════════════ -->
+<div id="vue-planning">
+
+  <!-- Bouton carte -->
+  <button class="btn-carte" onclick="setVue('carte')">
+    🗺️ Voir sur la carte
+  </button>
+
+  <!-- Navigation semaine -->
+  <div class="nav-semaine">
+    <button class="nav-btn" onclick="changerSemaine(-1)">‹</button>
+    <div class="nav-info">
+      <div class="mois" id="nav-mois">—</div>
+      <div class="jours" id="nav-jours">—</div>
+    </div>
+    <button class="nav-btn" onclick="changerSemaine(1)">›</button>
+  </div>
+
+  <!-- Formulaire -->
+  <div class="form-card">
+    <div class="form-title">Nouvel événement</div>
+    <div class="form-grid">
+      <select id="f-date" class="full"></select>
+      <div class="full" style="position:relative">
+        <div id="heure-display" onclick="toggleHeureMenu()" style="
+          background:var(--surface2); border:1px solid var(--border2);
+          color:var(--text); padding:9px 12px; border-radius:10px;
+          font-size:12px; cursor:pointer; display:flex;
+          align-items:center; justify-content:space-between;
+          transition:border-color .2s; user-select:none;
+        ">
+          <span id="heure-label">🕐 Heure & durée...</span>
+          <span style="color:var(--muted);font-size:10px">▼</span>
+        </div>
+        <div id="heure-menu" style="
+          display:none; position:absolute; top:calc(100% + 6px);
+          left:0; right:0; z-index:300;
+          background:var(--surface); border:1px solid var(--border2);
+          border-radius:12px; overflow:hidden;
+          box-shadow:0 8px 32px rgba(0,0,0,.6);
+        ">
+          <div style="display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid var(--border)">
+            <div style="padding:8px 12px; font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px; border-right:1px solid var(--border)">Heure</div>
+            <div style="padding:8px 12px; font-size:10px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.6px">Durée</div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; height:220px;">
+            <div id="heure-list" style="
+              overflow-y:scroll;
+              -webkit-overflow-scrolling:touch;
+              overscroll-behavior:contain;
+              border-right:1px solid var(--border);
+              touch-action:pan-y;
+            "></div>
+            <div id="duree-list" style="
+              overflow-y:scroll;
+              -webkit-overflow-scrolling:touch;
+              overscroll-behavior:contain;
+              touch-action:pan-y;
+            "></div>
+          </div>
+        </div>
+      </div>
+      <input type="hidden" id="f-heure" value="09:00">
+      <input type="hidden" id="f-duree" value="1">
+      <input type="text" id="f-nom" placeholder="Nom de l'événement..." class="full" onkeypress="if(event.key==='Enter') ajouter()">
+      <div class="full" style="position:relative">
+        <div style="display:flex;gap:6px">
+          <input type="text" id="f-ville" placeholder="Ville ou adresse (ex: Berre-l Etang)..." style="background:#27272a;border:1px solid #3f3f46;color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;outline:none;width:100%"
+            onkeypress="if(event.key==='Enter'){event.preventDefault();rechercherVille()}">
+          <button onclick="rechercherVille()" style="background:#27272a;border:1px solid #3f3f46;color:#9ca3af;padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px;flex-shrink:0">🔍</button>
+        </div>
+        <div id="ville-status"  style="display:none;margin-top:4px;font-size:11px;color:#10b981">✅ <span id="ville-nom-ok"></span></div>
+        <div id="ville-error"   style="display:none;margin-top:4px;font-size:11px;color:#ef4444">❌ Ville non trouvée, réessaie</div>
+        <div id="ville-loading" style="display:none;margin-top:4px;font-size:11px;color:#60a5fa">🔍 Recherche en cours...</div>
+        <div id="ville-suggestions" style="position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:200;background:#18181b;border:1px solid #3f3f46;border-radius:8px;overflow:hidden;display:none"></div>
+      </div>
+      <button class="btn-add" onclick="ajouter()">Ajouter l'événement</button>
+    </div>
+  </div>
+
+  <!-- Grille 5 jours -->
+  <div class="grille" id="grille"></div>
+
+</div>
+
+<!-- ═══════════════ VUE CARTE ═══════════════ -->
+<div id="vue-carte">
+  <div style="position:relative;">
+    <div id="map"></div>
+    <div class="cercle-info">📍 Rayon 100km</div>
+  </div>
+  <div id="legende">
+    <div class="leg-toggle" onclick="toggleLegende()">
+      <div class="leg-toggle-left">
+        <span>Événements</span>
+        <span class="leg-pill" id="leg-titre">0</span>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="leg-list" id="leg-list"></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+const COULEURS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+
+// Ville sélectionnée via Nominatim
+let villeSelectionnee = null; // { nom, lat, lng }
+
+// ══════════════════════════════════════════
+// ÉTAT
+// ══════════════════════════════════════════
+let offsetSemaine = 0;
+let evenements    = {};  // { dateKey: [event,...] }
+let userId        = 'u_' + Math.random().toString(36).substr(2,8);
+let vueActuelle   = 'planning';
+let map           = null;
+let userPos       = null;
+let markersMap    = {};
+let legendeOpen   = true;
+
+// ══════════════════════════════════════════
+// UTILITAIRES DATE
+// ══════════════════════════════════════════
+function getJours() {
+  const base = new Date();
+  base.setDate(base.getDate() + offsetSemaine * 5);
+  base.setHours(0,0,0,0);
+  const noms = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const moisFr = ['janv','févr','mars','avr','mai','juin','juil','août','sept','oct','nov','déc'];
+  return Array.from({length:5}, (_,i) => {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    const key = d.toISOString().split('T')[0];
+    return { nom: noms[d.getDay()], jourNum: d.getDate(), mois: moisFr[d.getMonth()], dateKey: key, date: d };
+  });
+}
+
+function estAujourdhui(date) {
+  const a = new Date(); a.setHours(0,0,0,0);
+  const b = new Date(date); b.setHours(0,0,0,0);
+  return a.getTime() === b.getTime();
+}
+
+function isWeekend(nom) { return nom === 'Sam' || nom === 'Dim'; }
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+function changerSemaine(delta) {
+  offsetSemaine += delta;
+  rendreGrille();
+  remplirSelectDate();
+}
+
+// ══════════════════════════════════════════
+// MENU HEURE / DURÉE
+// ══════════════════════════════════════════
+let heureChoisie = '09:00';
+let dureeChoisie = 1;
+
+function initHeureMenu() {
+  const listH = document.getElementById('heure-list');
+  const listD = document.getElementById('duree-list');
+
+  const itemStyle = (actif) => `
+    padding:11px 14px; font-size:13px; cursor:pointer;
+    background:${actif ? 'rgba(59,130,246,.15)' : 'transparent'};
+    color:${actif ? '#60a5fa' : 'var(--text)'};
+    font-weight:${actif ? '700' : '400'};
+    border-bottom:1px solid rgba(255,255,255,.04);
+    white-space:nowrap;
+  `;
+
+  // ── Colonne heures : heure actuelle → 23h30 ──
+  const maintenant = new Date();
+  const hNow = maintenant.getHours();
+  const mNow = maintenant.getMinutes() < 30 ? 0 : 30;
+
+  const creneaux = [];
+  for (let h = 0; h <= 23; h++) {
+    for (let m of [0, 30]) {
+      creneaux.push(`${String(h).padStart(2,'0')}:${m === 0 ? '00' : '30'}`);
+    }
+  }
+
+  // Trouver l'index de départ = heure actuelle
+  const idxNow = creneaux.findIndex(c => {
+    const [ch, cm] = c.split(':').map(Number);
+    return ch === hNow && cm === mNow;
+  });
+
+  // Réordonner : heure actuelle en premier, puis jusqu'à 23h30
+  const creneauxOrdonnes = [
+    ...creneaux.slice(idxNow),   // heure actuelle → 23h30
+    ...creneaux.slice(0, idxNow) // 00h00 → heure actuelle - 1
+  ];
+
+  listH.innerHTML = creneauxOrdonnes.map(str => {
+    const actif = str === heureChoisie;
+    return `<div onclick="choisirHeure('${str}')" style="${itemStyle(actif)}"
+      onmouseover="this.style.background='rgba(255,255,255,.06)'"
+      onmouseout="this.style.background='${actif ? 'rgba(59,130,246,.15)' : 'transparent'}'">
+      ${str}
+    </div>`;
+  }).join('');
+
+  // Scroll automatique vers l'heure choisie dans la liste réordonnée
+  const idxChoisi = creneauxOrdonnes.indexOf(heureChoisie);
+  if (idxChoisi >= 0) {
+    setTimeout(() => {
+      const items = listH.querySelectorAll('div');
+      if (items[idxChoisi]) {
+        items[idxChoisi].scrollIntoView({ block: 'center', behavior: 'instant' });
+      }
+    }, 30);
+  }
+
+  // ── Colonne durées ──
+  const durees = [
+    { val: 0.5, label: '30 min' },
+    { val: 1,   label: '1h' },
+    { val: 1.5, label: '1h 30' },
+    { val: 2,   label: '2h' },
+    { val: 2.5, label: '2h 30' },
+    { val: 3,   label: '3h' },
+    { val: 3.5, label: '3h 30' },
+    { val: 4,   label: '4h' },
+  ];
+
+  listD.innerHTML = durees.map(d => {
+    const actif = d.val === dureeChoisie;
+    return `<div onclick="choisirDuree(${d.val})" style="${itemStyle(actif)}"
+      onmouseover="this.style.background='rgba(255,255,255,.06)'"
+      onmouseout="this.style.background='${actif ? 'rgba(59,130,246,.15)' : 'transparent'}'">
+      ${d.label}
+    </div>`;
+  }).join('');
+
+  // Scroll vers la durée choisie
+  const idxDuree = durees.findIndex(d => d.val === dureeChoisie);
+  if (idxDuree >= 0) {
+    setTimeout(() => {
+      const items = listD.querySelectorAll('div');
+      if (items[idxDuree]) {
+        items[idxDuree].scrollIntoView({ block: 'center', behavior: 'instant' });
+      }
+    }, 30);
+  }
+}
+
+function choisirHeure(h) {
+  heureChoisie = h;
+  document.getElementById('f-heure').value = h;
+  majHeureLabel();
+  initHeureMenu();
+}
+
+function choisirDuree(d) {
+  dureeChoisie = d;
+  document.getElementById('f-duree').value = d;
+  majHeureLabel();
+  initHeureMenu();
+}
+
+function majHeureLabel() {
+  const labels = { 0.5:'30 min', 1:'1h', 1.5:'1h 30', 2:'2h', 2.5:'2h 30', 3:'3h', 3.5:'3h 30', 4:'4h' };
+  document.getElementById('heure-label').textContent = `🕐 ${heureChoisie} — ${labels[dureeChoisie] || dureeChoisie+'h'}`;
+}
+
+function toggleHeureMenu() {
+  const menu = document.getElementById('heure-menu');
+  const isOpen = menu.style.display === 'block';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) initHeureMenu();
+}
+
+// Fermer le menu si clic en dehors
+document.addEventListener('click', e => {
+  const display = document.getElementById('heure-display');
+  const menu    = document.getElementById('heure-menu');
+  if (display && menu && !display.contains(e.target) && !menu.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
+
+// ══════════════════════════════════════════
+// INIT FORMULAIRE
+// ══════════════════════════════════════════
+function remplirSelectDate() {
+  const sel = document.getElementById('f-date');
+  const jours = getJours();
+  sel.innerHTML = jours.map(j =>
+    `<option value="${j.dateKey}">${j.nom} ${j.jourNum} ${j.mois}${estAujourdhui(j.date) ? ' · Auj.' : ''}</option>`
+  ).join('');
+
+  // nav header
+  const moisFrLong = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const first = jours[0].date, last = jours[4].date;
+  document.getElementById('nav-mois').textContent =
+    first.getMonth() === last.getMonth()
+      ? `${moisFrLong[first.getMonth()]} ${first.getFullYear()}`
+      : `${moisFrLong[first.getMonth()]} – ${moisFrLong[last.getMonth()]} ${last.getFullYear()}`;
+  document.getElementById('nav-jours').textContent = `${jours[0].jourNum} – ${jours[4].jourNum}`;
+}
+
+function remplirSelectVille() {
+  // Plus de select fixe — la ville est saisie librement
+}
+
+// ══════════════════════════════════════════
+// RECHERCHE VILLE (Nominatim)
+// ══════════════════════════════════════════
+let rechercheTimeout = null;
+
+function onVilleInput() {
+  // Reset validation si l'utilisateur retape
+  villeSelectionnee = null;
+  document.getElementById('ville-status').style.display  = 'none';
+  document.getElementById('ville-error').style.display   = 'none';
+}
+
+async function rechercherVille() {
+  const q = document.getElementById('f-ville').value.trim();
+  if (!q) return;
+
+  document.getElementById('ville-loading').style.display = 'block';
+  document.getElementById('ville-status').style.display  = 'none';
+  document.getElementById('ville-error').style.display   = 'none';
+  document.getElementById('ville-suggestions').style.display = 'none';
+  villeSelectionnee = null;
+
+  try {
+    const resp = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=4&accept-language=fr`,
+      { headers: { 'Accept-Language': 'fr' } }
+    );
+    const data = await resp.json();
+    document.getElementById('ville-loading').style.display = 'none';
+
+    if (!data || data.length === 0) {
+      document.getElementById('ville-error').style.display = 'block';
+      return;
+    }
+
+    if (data.length === 1) {
+      // Un seul résultat → sélection directe
+      choisirVille(data[0]);
+    } else {
+      // Plusieurs résultats → afficher suggestions
+      afficherSuggestions(data);
+    }
+  } catch(e) {
+    document.getElementById('ville-loading').style.display = 'none';
+    document.getElementById('ville-error').textContent = '❌ Erreur réseau — vérifie ta connexion';
+    document.getElementById('ville-error').style.display = 'block';
+  }
+}
+
+function afficherSuggestions(resultats) {
+  const box = document.getElementById('ville-suggestions');
+  box.style.display = 'block';
+  box.innerHTML = resultats.map((r, i) => {
+    const nom = r.display_name.split(',').slice(0,3).join(', ');
+    return `<div onclick="choisirVille(${JSON.stringify(r).replace(/"/g,'&quot;')})"
+      style="padding:10px 12px;font-size:12px;color:#d4d4d8;cursor:pointer;border-bottom:1px solid #27272a"
+      onmouseover="this.style.background='#27272a'" onmouseout="this.style.background=''"
+    >📍 ${nom}</div>`;
+  }).join('');
+}
+
+function choisirVille(r) {
+  const nom = r.display_name.split(',').slice(0,2).join(', ');
+  villeSelectionnee = { nom, lat: parseFloat(r.lat), lng: parseFloat(r.lon) };
+  document.getElementById('f-ville').value = nom;
+  document.getElementById('ville-nom-ok').textContent = nom;
+  document.getElementById('ville-status').style.display = 'block';
+  document.getElementById('ville-error').style.display  = 'none';
+  document.getElementById('ville-suggestions').style.display = 'none';
+}
+
+// ══════════════════════════════════════════
+// AJOUTER ÉVÉNEMENT
+// ══════════════════════════════════════════
+function ajouter() {
+  const nom   = document.getElementById('f-nom').value.trim();
+  const date  = document.getElementById('f-date').value;
+
+  if (!nom) { alert('Saisis un nom pour l\'événement'); return; }
+  if (!villeSelectionnee) { alert('Recherche et sélectionne une ville d\'abord (icône 🔍)'); return; }
+
+  if (!evenements[date]) evenements[date] = [];
+  evenements[date].push({
+    id: Date.now(),
+    nom,
+    heure: heureChoisie,
+    duree: dureeChoisie,
+    ville: villeSelectionnee.nom,
+    lat:   villeSelectionnee.lat,
+    lng:   villeSelectionnee.lng,
+    participants: []
+  });
+  evenements[date].sort((a,b) => a.heure.localeCompare(b.heure));
+
+  // Reset formulaire
+  document.getElementById('f-nom').value   = '';
+  document.getElementById('f-ville').value = '';
+  document.getElementById('ville-status').style.display = 'none';
+  document.getElementById('heure-menu').style.display   = 'none';
+  villeSelectionnee = null;
+
+  rendreGrille();
+}
+
+// ══════════════════════════════════════════
+// SUPPRIMER
+// ══════════════════════════════════════════
+function supprimer(dateKey, id) {
+  evenements[dateKey] = (evenements[dateKey]||[]).filter(e => e.id !== id);
+  rendreGrille();
+  if (vueActuelle === 'carte') mettreAJourCarte();
+}
+
+// ══════════════════════════════════════════
+// PARTICIPATION
+// ══════════════════════════════════════════
+function toggleParticipation(dateKey, id) {
+  const ev = (evenements[dateKey]||[]).find(e => e.id === id);
+  if (!ev) return;
+  const idx = ev.participants.indexOf(userId);
+  if (idx > -1) ev.participants.splice(idx, 1);
+  else ev.participants.push(userId);
+  rendreGrille();
+}
+
+// ══════════════════════════════════════════
+// WHATSAPP
+// ══════════════════════════════════════════
+function whatsapp(dateKey, id) {
+  const ev = (evenements[dateKey]||[]).find(e => e.id === id);
+  if (!ev) return;
+  const jours = getJours();
+  const jour = jours.find(j => j.dateKey === dateKey);
+  const txt = `📅 *${ev.nom}*%0A🕐 ${jour ? jour.nom+' '+jour.jourNum+' '+jour.mois : ''} à ${ev.heure}%0A📍 ${ev.ville}%0A👥 ${ev.participants.length} participant${ev.participants.length>1?'s':''}`;
+  window.open(`https://wa.me/?text=${txt}`, '_blank');
+}
+
+// ══════════════════════════════════════════
+// RENDU GRILLE
+// ══════════════════════════════════════════
+function getTousEvenements() {
+  return Object.values(evenements).flat();
+}
+
+function getCouleur(ev) {
+  const tous = getTousEvenements();
+  const idx = tous.findIndex(e => e.id === ev.id);
+  return COULEURS[idx % COULEURS.length];
+}
+
+function rendreGrille() {
+  const jours = getJours();
+  const total = getTousEvenements().length;
+
+  // Tab carte
+  document.getElementById('tab-carte').textContent = `Carte${total>0?' ('+total+')':''}`;
+
+  const html = jours.map(jour => {
+    const isToday = estAujourdhui(jour.date);
+    const weekend = isWeekend(jour.nom);
+    const evs = evenements[jour.dateKey] || [];
+
+    const cartes = evs.length === 0
+      ? '<div class="aucun">—</div>'
+      : evs.map(ev => {
+          const c = getCouleur(ev);
+          const participe = ev.participants.includes(userId);
+          return `
+            <div class="event-card" style="border-left-color:${c}">
+              <button class="btn-del" onclick="supprimer('${jour.dateKey}',${ev.id})">✕</button>
+              <div class="event-heure">${ev.heure}${ev.duree ? ' — ' + ({0.5:'30min',1:'1h',1.5:'1h30',2:'2h',2.5:'2h30',3:'3h',3.5:'3h30',4:'4h'}[ev.duree]||ev.duree+'h') : ''}</div>
+              <div class="event-nom">${ev.nom}</div>
+              <div class="event-ville"><span style="color:${c};font-size:8px">●</span> ${ev.ville}</div>
+              <div class="event-actions">
+                <button class="btn-participer ${participe?'actif':''}" onclick="toggleParticipation('${jour.dateKey}',${ev.id})">
+                  👥 ${ev.participants.length}
+                </button>
+                <button class="btn-wa" onclick="whatsapp('${jour.dateKey}',${ev.id})">📤</button>
+              </div>
+            </div>`;
+        }).join('');
+
+    return `
+      <div class="col-jour ${isToday?'today':''}">
+        <div class="jour-header ${weekend?'weekend':'semaine'} ${isToday?'today-header':''}">
+          <div class="jour-nom">${jour.nom}</div>
+          <div class="jour-num">${jour.jourNum}</div>
+          <div class="jour-mois">${jour.mois}</div>
+        </div>
+        <div class="jour-body">${cartes}</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('grille').innerHTML = html;
+}
+
+// ══════════════════════════════════════════
+// VUE
+// ══════════════════════════════════════════
+function setVue(vue) {
+  vueActuelle = vue;
+  document.getElementById('vue-planning').style.display = vue === 'planning' ? 'block' : 'none';
+  document.getElementById('vue-carte').style.display    = vue === 'carte'    ? 'block' : 'none';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(vue === 'planning' ? '.tab:first-child' : '#tab-carte').classList.add('active');
+
+  if (vue === 'carte') {
+    initCarte();
+  }
+}
+
+// ══════════════════════════════════════════
+// CARTE LEAFLET
+// ══════════════════════════════════════════
+function creerIcone(couleur, num) {
+  return L.divIcon({
+    className:'',
+    html:`<div style="background:${couleur};width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.5)">${num}</div>`,
+    iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-20]
+  });
+}
+
+function initCarte() {
+  if (!map) {
+    map = L.map('map', { zoomControl:true });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution:'©OpenStreetMap ©CartoDB', maxZoom:18
+    }).addTo(map);
+    // Vue initiale centre France en attendant la géoloc
+    map.setView([46.5, 2.5], 6);
+  }
+
+  // Toujours redemander la position à chaque ouverture de la carte
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        userPos = [pos.coords.latitude, pos.coords.longitude];
+        afficherCarte();
+      },
+      err => {
+        console.warn('Géoloc échouée:', err.message);
+        // Fallback : centre France
+        userPos = [46.5, 2.5];
+        afficherCarte();
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  } else {
+    userPos = [46.5, 2.5];
+    afficherCarte();
+  }
+}
+
+function afficherCarte() {
+  if (!map || !userPos) return;
+
+  // Nettoyer anciens marqueurs
+  Object.values(markersMap).forEach(m => m.remove());
+  markersMap = {};
+
+  // Position utilisateur
+  L.circleMarker(userPos, {
+    radius:10, fillColor:'#3b82f6', color:'#fff', weight:3, fillOpacity:1
+  }).addTo(map).bindPopup('<b>📍 Votre position</b>');
+
+  // Cercle 100km
+  L.circle(userPos, {
+    radius:100000, color:'#3b82f6',
+    fillColor:'#3b82f6', fillOpacity:.07,
+    weight:2, dashArray:'8,6'
+  }).addTo(map);
+
+  // Marqueurs événements
+  const tous = getTousEvenements();
+  const bounds = [userPos];
+
+  tous.forEach((ev, i) => {
+    const c = COULEURS[i % COULEURS.length];
+    const m = L.marker([ev.lat, ev.lng], { icon: creerIcone(c, i+1) })
+      .addTo(map)
+      .bindPopup(`
+        <div style="font-family:-apple-system,sans-serif;padding:4px;min-width:170px">
+          <strong style="font-size:14px;display:block;margin-bottom:4px">${ev.nom}</strong>
+          <span style="color:#555;font-size:12px">🕐 ${ev.heure}${ev.duree ? ' ('+({0.5:'30min',1:'1h',1.5:'1h30',2:'2h',2.5:'2h30',3:'3h',3.5:'3h30',4:'4h'}[ev.duree]||ev.duree+'h')+')':''}</span><br>
+          <span style="color:#555;font-size:12px">📍 ${ev.ville}</span><br>
+          <span style="color:#059669;font-size:12px">👥 ${ev.participants.length} participant${ev.participants.length>1?'s':''}</span>
+        </div>
+      `);
+    markersMap[ev.id] = m;
+    bounds.push([ev.lat, ev.lng]);
+  });
+
+  // Zoom pour tout voir
+  if (bounds.length > 1) {
+    map.fitBounds(L.latLngBounds(bounds).pad(0.25));
+  } else {
+    map.setView(userPos, 9);
+  }
+
+  // Légende
+  rendreLegende(tous);
+}
+
+function rendreLegende(tous) {
+  document.getElementById('leg-titre').textContent = tous.length;
+
+  if (tous.length === 0) {
+    document.getElementById('leg-list').innerHTML =
+      '<div style="color:#52525b;font-size:13px;padding:8px 0">Aucun événement — ajoute-en dans le planning !</div>';
+    return;
+  }
+
+  document.getElementById('leg-list').innerHTML = tous.map((ev,i) => {
+    const c = COULEURS[i % COULEURS.length];
+    return `
+      <div class="leg-item" style="--c:${c}" onclick="zoomSur(${ev.lat},${ev.lng},${ev.id})">
+        <div class="leg-dot" style="--c:${c}">${i+1}</div>
+        <div class="leg-info">
+          <strong>${ev.nom}</strong>
+          <small>🕐 ${ev.heure} · 📍 ${ev.ville}</small>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function zoomSur(lat, lng, id) {
+  map.setView([lat, lng], 14);
+  if (markersMap[id]) markersMap[id].openPopup();
+}
+
+function mettreAJourCarte() {
+  if (map && userPos) afficherCarte();
+}
+
+function toggleLegende() {
+  const leg = document.getElementById('legende');
+  leg.classList.toggle('collapsed');
+  legendeOpen = !legendeOpen;
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+remplirSelectDate();
+remplirSelectVille();
+majHeureLabel();
+rendreGrille();
+</script>
+</body>
+</html>
